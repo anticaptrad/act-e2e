@@ -112,7 +112,14 @@ export async function startService(name, env = {}, options = {}) {
     get exit() {
       return exit;
     },
-    logText: () => logs.join(''),
+    /**
+     * Captured output with ANSI colour codes stripped. The tracing subscriber
+     * emits colour even to a pipe, and those escape sequences contain digits
+     * and brackets that quietly defeat assertions like /bytes[^0-9]*321/.
+     */
+    logText: () => stripAnsi(logs.join('')),
+    /** Captured output exactly as written, escape codes included. */
+    rawLogText: () => logs.join(''),
     /** Send a signal and resolve once the process is gone. */
     async stop(signal = 'SIGTERM', timeout = 10_000) {
       if (exit !== null) return exit;
