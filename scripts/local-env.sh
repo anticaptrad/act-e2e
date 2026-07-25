@@ -25,6 +25,7 @@ AI_PORT=${AI_PORT:-3000}
 PW_PORT=${PW_PORT:-3100}
 CDP_PORT=${CDP_PORT:-9222}
 JWT_SECRET=${JWT_SECRET:-local-e2e-secret}
+SERVER_AUTH_SECRET=${SERVER_AUTH_SECRET:-local-e2e-server-auth}
 
 lan_ip() {
   if command -v ipconfig >/dev/null 2>&1; then
@@ -89,9 +90,10 @@ up() {
     spawn api "$SIBLINGS/act-api-server.rs/target/debug/act_api_server"
   PORT=$WEB_PORT SUPABASE_JWT_SECRET="$JWT_SECRET" \
     spawn web "$SIBLINGS/act-web-server.rs/target/debug/act_web_server"
-  PORT=$MCP_PORT \
+  PORT=$MCP_PORT SERVER_AUTH_SECRET="$SERVER_AUTH_SECRET" \
     spawn mcp "$SIBLINGS/act-mcp-server.rs/target/debug/act_mcp_server"
-  ( cd "$SIBLINGS/act-ai-server.ts" && PORT=$AI_PORT spawn ai node dist/index.js )
+  ( cd "$SIBLINGS/act-ai-server.ts" && PORT=$AI_PORT \
+    SERVER_AUTH_SECRET="$SERVER_AUTH_SECRET" spawn ai node dist/index.js )
 
   for p in "$API_PORT api" "$WEB_PORT web" "$MCP_PORT mcp" "$AI_PORT ai"; do
     wait_for_http "http://127.0.0.1:${p%% *}/health" "${p##* } server"
@@ -118,6 +120,7 @@ export BROWSER_ACT_AI_URL=http://$lan:$AI_PORT
 export BROWSER_ACT_MCP_URL=http://$lan:$MCP_PORT
 export NATS_URL=nats://127.0.0.1:4222
 export SUPABASE_JWT_SECRET=$JWT_SECRET
+export ACT_SERVER_AUTH_SECRET=$SERVER_AUTH_SECRET
 export PLAYWRIGHT_WS_ENDPOINT=ws://127.0.0.1:$PW_PORT/
 export PUPPETEER_WS_ENDPOINT=$cdp_ws
 export SELENIUM_URL=http://127.0.0.1:4444/wd/hub

@@ -42,6 +42,7 @@ tests/
     web-auth.test.mjs               # Supabase JWT verification matrix
     web-auth-claims.test.mjs        # claim validation and hardening
     ai-routes.test.mjs              # AI server validation + config errors
+    ai-publish.test.mjs             # YouTube publishing + upload-dir containment
     ai-provider-matrix.test.mjs     # every provider, isolation of failures
     nats-bridge.test.mjs            # NATS delivery, scoping, ordering, req/reply
     nats-resilience.test.mjs        # lifecycle, subscriptions, load
@@ -56,9 +57,11 @@ tests/
     manifests.test.mjs              # k8s manifests vs. what the services do
   cluster/
     browser-service.test.mjs        # the deployed cluster's browser service
+    mcp-servers.test.mjs            # the cluster's MCP endpoints
 docs/
   testing-architecture.md           # why the layering exists
   cluster-browser-e2e.md            # running against AWS / Hetzner
+  cluster-mcp.md                    # talking to the cluster's MCP servers
 scripts/
   local-env.sh                      # bring the whole dependency stack up locally
 ```

@@ -82,5 +82,12 @@ export const clusterMcp = {
   timeoutMs: Number(process.env.ACT_MCP_TIMEOUT_MS ?? 30_000),
 };
 
+// Shared secret guarding the services' /api and /mcp surfaces. Attached
+// automatically by the HTTP helpers when set, so every suite authenticates
+// without threading a header through each call.
+export const serverAuth = {
+  secret: process.env.ACT_SERVER_AUTH_SECRET ?? '',
+};
+
 // Per-connection timeout for remote browser sessions and HTTP calls (ms).
 export const timeoutMs = Number(process.env.E2E_TIMEOUT_MS ?? 30000);
