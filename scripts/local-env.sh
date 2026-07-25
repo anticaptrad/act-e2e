@@ -36,6 +36,15 @@ lan_ip() {
 
 track() { echo "$1" >> "$PID_FILE"; }
 
+# Launch a long-running process fully detached from this script's stdio.
+# Without closing stdin/stdout the children keep the script's pipe open, so
+# `local-env.sh up | tee` would never see EOF and appear to hang.
+spawn() {
+  local name=$1; shift
+  nohup "$@" </dev/null >"$RUN_DIR/$name.log" 2>&1 &
+  track $!
+}
+
 wait_for_http() {
   local url=$1 name=$2
   for _ in $(seq 1 60); do
