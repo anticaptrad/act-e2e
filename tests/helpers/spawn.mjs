@@ -48,6 +48,10 @@ export function freePort() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// eslint-disable-next-line no-control-regex
+const ANSI = /\[[0-9;]*[A-Za-z]/g;
+const stripAnsi = (text) => text.replace(ANSI, '');
+
 /** Poll a URL until it answers or the deadline passes. */
 export async function waitForHttp(url, timeout = 15_000) {
   const deadline = Date.now() + timeout;
