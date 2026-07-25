@@ -75,7 +75,7 @@ describe('connection lifecycle', () => {
 
   test('publishing from a second connection reaches the first', async () => {
     const subject = uniqueSubject('cross-conn');
-    const sub = nc.subscribe(subject, { max: 1 });
+    const sub = await subscribeAndFlush(subject, { max: 1 });
     const received = (async () => {
       for await (const m of sub) return sc.decode(m.data);
     })();
@@ -85,7 +85,7 @@ describe('connection lifecycle', () => {
     await publisher.flush();
     await publisher.close();
 
-    assert.equal(await received, 'from-other-connection');
+    assert.equal(await withTimeout(received, 'cross-connection message'), 'from-other-connection');
   });
 });
 
