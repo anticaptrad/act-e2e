@@ -16,16 +16,32 @@ tests/
   helpers/
     http.mjs                        # fetch + JSON-RPC helpers
     jwt.mjs                         # HS256 minting, incl. deliberately bad tokens
-  browser/
-    playwright/health.test.mjs      # remote Chromium via the Playwright service
-    puppeteer/health.test.mjs       # remote Chrome via the Puppeteer service (CDP)
-    selenium/health.test.mjs        # remote Chrome via the Selenium Grid hub
+  browser/                          # same assertions through three drivers
+    playwright/  health.test.mjs    # services reached through remote Chromium
+                 interaction.test.mjs
+    puppeteer/   health.test.mjs    # services reached through remote Chrome (CDP)
+                 interaction.test.mjs
+    selenium/    health.test.mjs    # services reached through the Grid hub
+                 interaction.test.mjs
   integration/
     health.test.mjs                 # probe contracts, readiness payloads, load
+    platform-contracts.test.mjs     # conventions that must hold across both stacks
+    http-semantics.test.mjs         # methods, paths, content types, body limits
+    security.test.mjs               # leakage, fingerprinting, hostile input
+    observability.test.mjs          # W3C trace context, correlation headers
+    performance.test.mjs            # latency and throughput budgets
     mcp-protocol.test.mjs           # MCP JSON-RPC conformance
+    mcp-edge-cases.test.mjs         # transport and envelope corners
     web-auth.test.mjs               # Supabase JWT verification matrix
+    web-auth-claims.test.mjs        # claim validation and hardening
     ai-routes.test.mjs              # AI server validation + config errors
+    ai-provider-matrix.test.mjs     # every provider, isolation of failures
     nats-bridge.test.mjs            # NATS delivery, scoping, ordering, req/reply
+    nats-resilience.test.mjs        # lifecycle, subscriptions, load
+  contracts/
+    manifests.test.mjs              # k8s manifests vs. what the services do
+scripts/
+  local-env.sh                      # bring the whole dependency stack up locally
 ```
 
 Each browser suite drives the same services through a different automation
@@ -39,6 +55,7 @@ npm test                 # everything
 npm run test:integration # HTTP + NATS suites only (no browser needed)
 npm run test:browser     # all three browser drivers
 npm run test:playwright  # one driver at a time
+npm run test:contracts   # k8s manifests vs. the running services
 ```
 
 Endpoints default to in-cluster DNS, so run from inside the cluster (or a Job) —
@@ -68,31 +85,22 @@ Two knobs need explanation:
 
 ## Running locally against real dependencies
 
-The whole suite runs on a laptop. Because the containerized Selenium browser
-cannot reach the host on `127.0.0.1`, address the services by the host's LAN IP —
-reachable from both the host and the containers.
+The whole suite runs on a laptop. `scripts/local-env.sh` starts NATS, a Selenium Grid, a Playwright server, a CDP
+Chromium, and all four services, then prints the environment to export. Build
+the services first (`cargo build` in each `.rs` repo, `npm run build` in
+`act-ai-server.ts`).
 
 ```sh
-LAN=$(ipconfig getifaddr en0)          # macOS; use `hostname -I` on Linux
-
-# Dependencies
-docker run -d --name nats -p 4222:4222 nats:2-alpine
-docker run -d --name selenium --shm-size=2g -p 4444:4444 selenium/standalone-chromium
-
-# Playwright server + a CDP browser for Puppeteer
-npx playwright install chromium
-npx playwright run-server --port 3100 --host 127.0.0.1 &
-"$(find ~/Library/Caches/ms-playwright -name headless_shell | head -1)" \
-  --remote-debugging-port=9222 --headless &
-
-# Services (from their own repos): act_api_server, act_web_server,
-# act_mcp_server on 8080/8081/8082 and act-ai-server on 3000.
-
+./scripts/local-env.sh up          # start everything
+eval "$(./scripts/local-env.sh env)"
 npm test
+./scripts/local-env.sh status      # what is listening
+./scripts/local-env.sh down        # stop everything
 ```
 
-Set `ACT_*_URL` to `http://127.0.0.1:<port>` and `BROWSER_ACT_*_URL` to
-`http://$LAN:<port>`, plus the browser endpoints and `SUPABASE_JWT_SECRET`.
+The script addresses services on `127.0.0.1` for the test process and on the
+host's LAN IP for `BROWSER_ACT_*_URL`, because the containerized Selenium
+browser cannot reach the host on loopback.
 
 ## What the suites assert
 
@@ -113,4 +121,19 @@ Set `ACT_*_URL` to `http://127.0.0.1:<port>` and `BROWSER_ACT_*_URL` to
   money on a real completion.
 - **NATS** — delivery over `act.events.>` (the subject the api-server consumes),
   subject scoping, payload integrity (JSON, unicode, empty, 64 KiB, headers),
-  ordering, fan-out, queue groups, and request/reply.
+  ordering, fan-out, queue groups, and request/reply, plus connection lifecycle,
+  subscription management, and behaviour under a 2 000-message burst.
+- **HTTP semantics** — method handling, path matching (trailing slash, case,
+  traversal), content-type enforcement, body limits, and connection reuse.
+- **Security** — no stack traces or framework fingerprints in responses, hostile
+  input treated as data rather than executed, and secrets never echoed.
+- **Observability** — W3C trace context and correlation headers are accepted,
+  and a malformed `traceparent` never becomes a 5xx.
+- **Manifest contracts** — the act-infra manifests are parsed and checked
+  against the running services: probes, resource limits, `securityContext`,
+  secret injection, and port agreement. Nothing else fails when an app default
+  and its manifest drift apart.
+
+Because the runner executes files in parallel against one broker, the NATS
+suites scope their subjects under a per-run token; a bare `act.events.>`
+subscription would otherwise observe the other suite's traffic.
