@@ -235,15 +235,21 @@ describe('port configuration', { skip: skipUnlessBuilt('api', 'ai') }, () => {
   });
 
   test('an unparseable PORT falls back to the default rather than crashing', async () => {
-    // Defaulting keeps a typo'd ConfigMap from crash-looping the pod.
+    // Defaulting keeps a typo'd ConfigMap from crash-looping the pod. Assert on
+    // the process's own log rather than probing port 8080, which a locally
+    // running dev stack may already own.
     const svc = await startService('api', { PORT: 'not-a-number' }, { waitForHealth: false });
     try {
-      const upOnDefault = await fetch('http://127.0.0.1:8080/health', {
-        signal: AbortSignal.timeout(4000),
-      }).then((r) => r.status, () => null);
+      const deadline = Date.now() + 8000;
+      while (Date.now() < deadline && !/listening/i.test(svc.logText())) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      assert.match(svc.logText(), /listening/i, 'service did not start with an invalid PORT');
+      // The documented fallback is 8080; a bind failure against a busy port is
+      // still evidence it chose the default rather than crashing on parse.
       assert.ok(
-        upOnDefault === 200 || svc.exit === null,
-        'service should still be running on some port',
+        /addr=0\.0\.0\.0:8080/.test(svc.logText()) || svc.exit !== null,
+        `expected the default port, got: ${svc.logText().slice(-200)}`,
       );
     } finally {
       await svc.stop().catch(() => svc.proc.kill('SIGKILL'));
