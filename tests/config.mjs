@@ -47,5 +47,24 @@ export const supabase = {
   jwtAud: process.env.SUPABASE_JWT_AUD ?? 'authenticated',
 };
 
+// The cluster's shared browser-automation service (dd-browser-test-server).
+//
+// Unlike the local suites, this is not a raw Playwright/CDP/WebDriver endpoint:
+// the cluster deliberately keeps those pod-internal and exposes one
+// authenticated scenario API instead (`POST /run` with a `tool` field). See
+// docs/cluster-browser-e2e.md.
+//
+// `baseUrl` is normally a port-forward to the in-cluster Service. `targetUrl` is
+// what the remote browser should navigate to, so it must resolve *inside* the
+// cluster — hence the in-cluster DNS default.
+export const clusterBrowser = {
+  baseUrl: process.env.ACT_BROWSER_TEST_URL ?? '',
+  authSecret: process.env.ACT_BROWSER_TEST_AUTH ?? '',
+  targetUrl:
+    process.env.ACT_BROWSER_TARGET_URL ?? 'http://dd-browser-test-server:8104/healthz',
+  // Scenario runs drive a real browser; they need far longer than an HTTP probe.
+  timeoutMs: Number(process.env.ACT_BROWSER_TEST_TIMEOUT_MS ?? 180_000),
+};
+
 // Per-connection timeout for remote browser sessions and HTTP calls (ms).
 export const timeoutMs = Number(process.env.E2E_TIMEOUT_MS ?? 30000);
