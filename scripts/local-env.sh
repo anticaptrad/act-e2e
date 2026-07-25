@@ -61,9 +61,18 @@ up() {
   npx --yes playwright install chromium >/dev/null 2>&1
   nohup npx --yes playwright run-server --port "$PW_PORT" --host 127.0.0.1 \
     > "$RUN_DIR/playwright.log" 2>&1 & track $!
-  local shell_bin
-  shell_bin=$(find "$HOME/Library/Caches/ms-playwright" "$HOME/.cache/ms-playwright" \
-    -name 'headless_shell' -type f 2>/dev/null | head -1)
+  # Search only the cache dirs that exist; `find` fails on a missing path and
+  # would trip `set -e`.
+  local shell_bin=""
+  for cache in "$HOME/Library/Caches/ms-playwright" "$HOME/.cache/ms-playwright"; do
+    [ -d "$cache" ] || continue
+    shell_bin=$(find "$cache" -name 'headless_shell' -type f 2>/dev/null | head -1 || true)
+    [ -n "$shell_bin" ] && break
+  done
+  if [ -z "$shell_bin" ]; then
+    echo "  could not locate a headless_shell binary; run: npx playwright install chromium" >&2
+    return 1
+  fi
   nohup "$shell_bin" --remote-debugging-port="$CDP_PORT" --headless --no-sandbox \
     > "$RUN_DIR/cdp.log" 2>&1 & track $!
   wait_for_http "http://127.0.0.1:$CDP_PORT/json/version" "cdp chromium"
