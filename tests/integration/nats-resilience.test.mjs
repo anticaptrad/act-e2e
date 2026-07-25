@@ -21,6 +21,34 @@ after(async () => {
 
 const uniqueSubject = (name) => `act.events.e2e.${name}.${process.pid}.${Date.now()}`;
 
+/**
+ * Fail with a clear message instead of hanging when an expected message never
+ * arrives. NATS core is fire-and-forget, so a lost message would otherwise
+ * leave the collector awaiting forever.
+ */
+function withTimeout(promise, label, ms = 15_000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`timed out waiting for ${label}`)), ms).unref(),
+    ),
+  ]);
+}
+
+/**
+ * Register a subscription and wait for the server to acknowledge it.
+ *
+ * Subscribing is asynchronous: the SUB frame is queued on the connection. When
+ * the publisher is a *different* connection there is no ordering guarantee
+ * between our SUB and their PUB, so without this flush the first messages can
+ * be delivered before the subscription exists and are silently dropped.
+ */
+async function subscribeAndFlush(subject, opts) {
+  const sub = nc.subscribe(subject, opts);
+  await nc.flush();
+  return sub;
+}
+
 describe('connection lifecycle', () => {
   test('an independent connection can be opened and closed', async () => {
     const extra = await connect({ servers: natsConfig.url, timeout: timeoutMs });
