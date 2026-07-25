@@ -11,7 +11,10 @@
     "test:selenium": "node --test \"tests/browser/selenium/*.test.mjs\"",
     "test:integration": "node --test \"tests/integration/*.test.mjs\"",
     "test:browser": "node --test \"tests/browser/**/*.test.mjs\"",
-    "test:contracts": "node --test \"tests/contracts/*.test.mjs\""
+    "test:contracts": "node --test \"tests/contracts/*.test.mjs\"",
+    "test:lifecycle": "node --test \"tests/lifecycle/*.test.mjs\"",
+    "test:database": "node --test \"tests/database/*.test.mjs\"",
+    "test:journeys": "node --test \"tests/journeys/*.test.mjs\""
   },
   "devDependencies": {
     "nats": "^2.28.2",

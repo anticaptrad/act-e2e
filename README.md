@@ -38,6 +38,13 @@ tests/
     ai-provider-matrix.test.mjs     # every provider, isolation of failures
     nats-bridge.test.mjs            # NATS delivery, scoping, ordering, req/reply
     nats-resilience.test.mjs        # lifecycle, subscriptions, load
+  lifecycle/                        # owns the process under test
+    shutdown.test.mjs               # SIGTERM draining and bounded exit
+    config-matrix.test.mjs          # fail-soft deps, fail-closed auth, ports
+  database/
+    migrations.test.mjs             # sea-orm migrations against real Postgres
+  journeys/
+    event-bridge.test.mjs           # the api-server really consumes NATS events
   contracts/
     manifests.test.mjs              # k8s manifests vs. what the services do
 scripts/
@@ -56,7 +63,16 @@ npm run test:integration # HTTP + NATS suites only (no browser needed)
 npm run test:browser     # all three browser drivers
 npm run test:playwright  # one driver at a time
 npm run test:contracts   # k8s manifests vs. the running services
+npm run test:lifecycle   # shutdown + startup config (spawns its own services)
+npm run test:database    # migrations (starts its own Postgres via docker)
+npm run test:journeys    # cross-service flows
 ```
+
+The `lifecycle`, `database`, and `journeys` suites start what they need rather
+than talking to an existing deployment, because the behaviour under test *is*
+the startup and shutdown path. They need the services built alongside this repo
+(and docker, for `database`), and skip with an explicit reason otherwise — a
+skipped suite names the missing prerequisite rather than passing silently.
 
 Endpoints default to in-cluster DNS, so run from inside the cluster (or a Job) —
 or point them at port-forwarded endpoints:
@@ -129,6 +145,21 @@ browser cannot reach the host on loopback.
   input treated as data rather than executed, and secrets never echoed.
 - **Observability** — W3C trace context and correlation headers are accepted,
   and a malformed `traceparent` never becomes a 5xx.
+- **Lifecycle** — SIGTERM drains in-flight work and exits 0, and the drain is
+  *bounded*: a client that never reads its response body keeps the connection
+  active, which would otherwise hold the pod open until the kubelet SIGKILLed it
+  and stall every rolling update.
+- **Startup configuration** — optional dependencies fail soft (a dead broker or
+  database still serves probes) while auth fails closed (no signing secret means
+  deny, never allow). Audience, issuer, and leeway are checked as configured.
+- **Migrations** — the sea-orm crate is applied to a throwaway Postgres: schema
+  shape, NOT NULL and primary-key constraints, `status`, idempotent re-runs, and
+  a reversible `down`. This is also the only place the service's database
+  connection path is exercised at all; every other suite runs without one.
+- **Event-bridge journey** — proves the api-server *itself* consumes what it
+  subscribes to. The NATS suites only show the broker delivers to a subscriber
+  we control, which would still pass if the service were subscribed to the wrong
+  subject or silently failing.
 - **Manifest contracts** — the act-infra manifests are parsed and checked
   against the running services: probes, resource limits, `securityContext`,
   secret injection, and port agreement. Nothing else fails when an app default
