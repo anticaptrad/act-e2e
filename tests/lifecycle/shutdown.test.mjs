@@ -8,6 +8,15 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { skipUnlessBuilt, startService, waitForHttp } from '../helpers/spawn.mjs';
 
+// The AI server's /api routes are behind a shared secret, so the drain tests
+// must both configure one and present it.
+const AI_SECRET = 'lifecycle-drain-secret';
+const aiEnv = { SERVER_AUTH_SECRET: AI_SECRET };
+const aiHeaders = {
+  'content-type': 'application/json',
+  'x-server-auth': AI_SECRET,
+};
+
 const RUST = ['api', 'web', 'mcp'];
 
 describe('services exit cleanly on SIGTERM', { skip: skipUnlessBuilt(...RUST) }, () => {
@@ -58,11 +67,11 @@ describe('in-flight requests are drained', { skip: skipUnlessBuilt('ai') }, () =
     // /api/generate/video deliberately takes ~2s, which is long enough to have
     // a request genuinely in flight when the signal lands. Severing it instead
     // of draining would surface here as a transport error.
-    const svc = await startService('ai');
+    const svc = await startService('ai', aiEnv);
     try {
       const inFlight = fetch(`${svc.url}/api/generate/video`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: aiHeaders,
         body: JSON.stringify({ script: 'drain me' }),
         signal: AbortSignal.timeout(20_000),
       });
@@ -81,10 +90,10 @@ describe('in-flight requests are drained', { skip: skipUnlessBuilt('ai') }, () =
   });
 
   test('the process exits after draining rather than hanging', async () => {
-    const svc = await startService('ai');
+    const svc = await startService('ai', aiEnv);
     const inFlight = fetch(`${svc.url}/api/generate/video`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: aiHeaders,
       body: JSON.stringify({ script: 'drain then exit' }),
       signal: AbortSignal.timeout(20_000),
       // Consume the body: an unread response keeps the connection active.
@@ -100,12 +109,12 @@ describe('in-flight requests are drained', { skip: skipUnlessBuilt('ai') }, () =
     // A client that leaves the body unread keeps the connection active, so an
     // unbounded drain would hold the pod open until the kubelet SIGKILLed it.
     // The grace period must cap that.
-    const svc = await startService('ai', { SHUTDOWN_GRACE_MS: '2000' });
+    const svc = await startService('ai', { ...aiEnv, SHUTDOWN_GRACE_MS: '2000' });
     try {
       // Deliberately never read the body.
       const rude = fetch(`${svc.url}/api/generate/video`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: aiHeaders,
         body: JSON.stringify({ script: 'never read' }),
         signal: AbortSignal.timeout(20_000),
       }).catch(() => null);
@@ -124,11 +133,11 @@ describe('in-flight requests are drained', { skip: skipUnlessBuilt('ai') }, () =
   });
 
   test('the forced exit is logged so operators can see it', async () => {
-    const svc = await startService('ai', { SHUTDOWN_GRACE_MS: '1000' });
+    const svc = await startService('ai', { ...aiEnv, SHUTDOWN_GRACE_MS: '1000' });
     try {
       fetch(`${svc.url}/api/generate/video`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: aiHeaders,
         body: JSON.stringify({ script: 'unread' }),
         signal: AbortSignal.timeout(20_000),
       }).catch(() => null);
@@ -142,7 +151,7 @@ describe('in-flight requests are drained', { skip: skipUnlessBuilt('ai') }, () =
   });
 
   test('the AI server logs its shutdown', async () => {
-    const svc = await startService('ai');
+    const svc = await startService('ai', aiEnv);
     await svc.stop('SIGTERM');
     assert.match(svc.logText(), /shutting down|SIGTERM/i);
   });

@@ -8,6 +8,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { browsers, browserServices, timeoutMs } from '../../config.mjs';
+import { serverAuth } from '../../config.mjs';
 
 let browser;
 
@@ -88,16 +89,16 @@ describe('concurrency', () => {
     await withContext(async (context) => {
       const page = await context.newPage();
       await page.goto(`${browserServices.mcp}/health`, { timeout: timeoutMs });
-      const statuses = await page.evaluate(async () => {
+      const statuses = await page.evaluate(async (secret) => {
         const calls = Array.from({ length: 20 }, (_, i) =>
           fetch('/mcp', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', 'x-server-auth': secret },
             body: JSON.stringify({ jsonrpc: '2.0', id: i, method: 'ping' }),
           }).then((r) => r.status),
         );
         return Promise.all(calls);
-      });
+      }, serverAuth.secret);
       assert.deepEqual(statuses, Array(20).fill(200));
     });
   });

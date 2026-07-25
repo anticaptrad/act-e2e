@@ -1,11 +1,23 @@
 // Small HTTP helpers shared by the integration suites.
-import { timeoutMs } from '../config.mjs';
+import { serverAuth, timeoutMs } from '../config.mjs';
+
+/**
+ * Auth header for the protected surfaces, when a secret is configured.
+ *
+ * Applied by default so existing suites keep exercising the routes rather than
+ * all turning into 401 assertions. Tests that are *about* the boundary pass
+ * their own headers explicitly.
+ */
+function authHeaders() {
+  return serverAuth.secret ? { 'x-server-auth': serverAuth.secret } : {};
+}
 
 /** GET a URL, returning status, headers, and raw body text. */
 export async function get(url, options = {}) {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(timeoutMs),
     ...options,
+    headers: { ...authHeaders(), ...(options.headers ?? {}) },
   });
   return { status: res.status, headers: res.headers, body: await res.text() };
 }
@@ -25,7 +37,11 @@ export async function postJson(url, payload, options = {}) {
   const res = await fetch(url, {
     ...options,
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...authHeaders(),
+      ...(options.headers ?? {}),
+    },
     body: typeof payload === 'string' ? payload : JSON.stringify(payload),
     signal: options.signal ?? AbortSignal.timeout(timeoutMs),
   });

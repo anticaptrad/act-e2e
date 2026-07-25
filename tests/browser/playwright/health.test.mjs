@@ -4,6 +4,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { browsers, browserServices, timeoutMs } from '../../config.mjs';
+import { serverAuth } from '../../config.mjs';
 
 let browser;
 
@@ -77,14 +78,14 @@ describe('in-page JavaScript against the services', () => {
     await withPage(async (page) => {
       // Navigate to the MCP service first so the fetch below is same-origin.
       await page.goto(`${browserServices.mcp}/health`, { timeout: timeoutMs });
-      const result = await page.evaluate(async () => {
+      const result = await page.evaluate(async (secret) => {
         const res = await fetch('/mcp', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'x-server-auth': secret },
           body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
         });
         return res.json();
-      });
+      }, serverAuth.secret);
       assert.equal(result.jsonrpc, '2.0');
       assert.equal(result.result.protocolVersion, '2024-11-05');
     });
@@ -93,14 +94,14 @@ describe('in-page JavaScript against the services', () => {
   test('tools/list is callable from the browser', async () => {
     await withPage(async (page) => {
       await page.goto(`${browserServices.mcp}/health`, { timeout: timeoutMs });
-      const tools = await page.evaluate(async () => {
+      const tools = await page.evaluate(async (secret) => {
         const res = await fetch('/mcp', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'x-server-auth': secret },
           body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
         });
         return (await res.json()).result.tools;
-      });
+      }, serverAuth.secret);
       assert.ok(Array.isArray(tools) && tools.length > 0, 'expected a non-empty tool list');
     });
   });
@@ -108,14 +109,14 @@ describe('in-page JavaScript against the services', () => {
   test('the AI server rejects an invalid request from the browser', async () => {
     await withPage(async (page) => {
       await page.goto(`${browserServices.ai}/health`, { timeout: timeoutMs });
-      const status = await page.evaluate(async () => {
+      const status = await page.evaluate(async (secret) => {
         const res = await fetch('/api/generate/script', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'x-server-auth': secret },
           body: JSON.stringify({}),
         });
         return res.status;
-      });
+      }, serverAuth.secret);
       assert.equal(status, 400);
     });
   });

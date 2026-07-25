@@ -8,6 +8,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Builder } from 'selenium-webdriver';
 import { browsers, browserServices, timeoutMs } from '../../config.mjs';
+import { serverAuth } from '../../config.mjs';
 
 let driver;
 
@@ -87,35 +88,35 @@ describe('script execution', () => {
 
   test('an async script can await a service call', async () => {
     await driver.get(`${browserServices.mcp}/health`);
-    const status = await driver.executeAsyncScript(function () {
+    const status = await driver.executeAsyncScript(function (secret) {
       const callback = arguments[arguments.length - 1];
       fetch('/mcp', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-server-auth': secret },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
       })
         .then((r) => callback(r.status))
         .catch(() => callback(-1));
-    });
+    }, serverAuth.secret);
     assert.equal(status, 200);
   });
 
   test('parallel in-page RPCs all succeed', async () => {
     await driver.get(`${browserServices.mcp}/health`);
-    const statuses = await driver.executeAsyncScript(function () {
+    const statuses = await driver.executeAsyncScript(function (secret) {
       const callback = arguments[arguments.length - 1];
       const calls = [];
       for (let i = 0; i < 10; i++) {
         calls.push(
           fetch('/mcp', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', 'x-server-auth': secret },
             body: JSON.stringify({ jsonrpc: '2.0', id: i, method: 'ping' }),
           }).then((r) => r.status),
         );
       }
       Promise.all(calls).then(callback).catch(() => callback([]));
-    });
+    }, serverAuth.secret);
     assert.deepEqual(statuses, Array(10).fill(200));
   });
 });

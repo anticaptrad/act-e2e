@@ -7,6 +7,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer-core';
 import { browsers, browserServices, timeoutMs } from '../../config.mjs';
+import { serverAuth } from '../../config.mjs';
 
 let browser;
 
@@ -77,18 +78,18 @@ describe('concurrency', () => {
   test('parallel in-page RPCs all succeed', async () => {
     await withPage(async (page) => {
       await page.goto(`${browserServices.mcp}/health`);
-      const ids = await page.evaluate(async () => {
+      const ids = await page.evaluate(async (secret) => {
         const calls = Array.from({ length: 15 }, (_, i) =>
           fetch('/mcp', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', 'x-server-auth': secret },
             body: JSON.stringify({ jsonrpc: '2.0', id: i, method: 'ping' }),
           })
             .then((r) => r.json())
             .then((j) => j.id),
         );
         return Promise.all(calls);
-      });
+      }, serverAuth.secret);
       assert.deepEqual(ids, Array.from({ length: 15 }, (_, i) => i));
     });
   });

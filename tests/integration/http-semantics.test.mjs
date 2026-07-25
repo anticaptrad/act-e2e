@@ -5,8 +5,13 @@
 // enforcement, and body limits.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { services, timeoutMs } from '../config.mjs';
+import { serverAuth, services, timeoutMs } from '../config.mjs';
 import { get, postJson } from '../helpers/http.mjs';
+
+// Raw fetch bypasses the helper, so the protected MCP surface needs the header
+// added explicitly or these assert on 401 instead of what they mean to test.
+const authHeader = () =>
+  serverAuth.secret ? { 'x-server-auth': serverAuth.secret } : {};
 
 const ALL = Object.entries(services);
 
@@ -78,7 +83,7 @@ describe('content-type enforcement', () => {
     for (const contentType of ['text/plain', 'application/x-www-form-urlencoded']) {
       const res = await fetch(`${services.mcp}/mcp`, {
         method: 'POST',
-        headers: { 'content-type': contentType },
+        headers: { 'content-type': contentType, ...authHeader() },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -89,7 +94,7 @@ describe('content-type enforcement', () => {
   test('the MCP endpoint rejects a body with no content-type', async () => {
     const res = await fetch(`${services.mcp}/mcp`, {
       method: 'POST',
-      headers: { 'content-type': '' },
+      headers: { 'content-type': '', ...authHeader() },
       body: '{"jsonrpc":"2.0","id":1,"method":"ping"}',
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -99,7 +104,7 @@ describe('content-type enforcement', () => {
   test('a JSON content-type with a charset parameter is accepted', async () => {
     const res = await fetch(`${services.mcp}/mcp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json; charset=utf-8' },
+      headers: { 'content-type': 'application/json; charset=utf-8', ...authHeader() },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -149,7 +154,7 @@ describe('request body limits', () => {
   test('an empty body on a JSON route is a client error', async () => {
     const res = await fetch(`${services.mcp}/mcp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...authHeader() },
       body: '',
       signal: AbortSignal.timeout(timeoutMs),
     });

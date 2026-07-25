@@ -7,6 +7,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Builder } from 'selenium-webdriver';
 import { browsers, browserServices, timeoutMs } from '../../config.mjs';
+import { serverAuth } from '../../config.mjs';
 
 let driver;
 
@@ -28,8 +29,11 @@ after(async () => {
  */
 function fetchInPage(path, init) {
   return driver.executeAsyncScript(
-    function (p, i) {
+    function (p, i, secret) {
       const callback = arguments[arguments.length - 1];
+      if (i && secret) {
+        i.headers = Object.assign({}, i.headers, { 'x-server-auth': secret });
+      }
       fetch(p, i || undefined)
         .then((res) => res.text().then((text) => {
           let json = null;
@@ -40,6 +44,7 @@ function fetchInPage(path, init) {
     },
     path,
     init ?? null,
+    serverAuth.secret,
   );
 }
 
