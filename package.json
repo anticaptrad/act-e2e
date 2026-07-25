@@ -6,10 +6,11 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "test:playwright": "node --test tests/browser/playwright",
-    "test:puppeteer": "node --test tests/browser/puppeteer",
-    "test:selenium": "node --test tests/browser/selenium",
-    "test:integration": "node --test tests/integration"
+    "test:playwright": "node --test \"tests/browser/playwright/*.test.mjs\"",
+    "test:puppeteer": "node --test \"tests/browser/puppeteer/*.test.mjs\"",
+    "test:selenium": "node --test \"tests/browser/selenium/*.test.mjs\"",
+    "test:integration": "node --test \"tests/integration/*.test.mjs\"",
+    "test:browser": "node --test \"tests/browser/**/*.test.mjs\""
   },
   "devDependencies": {
     "nats": "^2.28.2",
