@@ -10,6 +10,10 @@ export async function get(url, options = {}) {
   return { status: res.status, headers: res.headers, body: await res.text() };
 }
 
+// Caller options are spread first so the fields computed below always win.
+// Spreading them last would let an options object that carries `headers`
+// silently drop the content-type merged in here.
+
 /** GET and parse the body as JSON. */
 export async function getJson(url, options = {}) {
   const { status, headers, body } = await get(url, options);
