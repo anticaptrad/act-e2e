@@ -23,10 +23,13 @@ tests/
   browser/                          # same assertions through three drivers
     playwright/  health.test.mjs    # services reached through remote Chromium
                  interaction.test.mjs
+                 ui.test.mjs        # the act-web-server operator UI
     puppeteer/   health.test.mjs    # services reached through remote Chrome (CDP)
                  interaction.test.mjs
+                 ui.test.mjs
     selenium/    health.test.mjs    # services reached through the Grid hub
                  interaction.test.mjs
+                 ui.test.mjs
   integration/
     health.test.mjs                 # probe contracts, readiness payloads, load
     platform-contracts.test.mjs     # conventions that must hold across both stacks
@@ -62,6 +65,10 @@ scripts/
 
 Each browser suite drives the same services through a different automation
 stack, so a regression in any one driver integration is caught independently.
+The `ui.test.mjs` files drive `act-web-server`'s operator UI — the status panel
+and the token-verification form — through all three drivers. Selenium has no
+auto-waiting, so a UI that only passes under Playwright has a latent race and
+that suite is where it surfaces.
 
 ## Running
 
