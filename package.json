@@ -1,0 +1,20 @@
+{
+  "name": "act-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end interop tests for the AntiCapTrad services, exercised against the k8s cluster's Playwright, Puppeteer, and Selenium services plus the NATS bridge",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "test:playwright": "node --test tests/browser/playwright",
+    "test:puppeteer": "node --test tests/browser/puppeteer",
+    "test:selenium": "node --test tests/browser/selenium",
+    "test:integration": "node --test tests/integration"
+  },
+  "devDependencies": {
+    "nats": "^2.28.2",
+    "playwright-core": "^1.48.2",
+    "puppeteer-core": "^23.6.0",
+    "selenium-webdriver": "^4.26.0"
+  }
+}
