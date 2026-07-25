@@ -68,8 +68,7 @@ up() {
 
   echo "== browsers =="
   npx --yes playwright install chromium >/dev/null 2>&1
-  nohup npx --yes playwright run-server --port "$PW_PORT" --host 127.0.0.1 \
-    > "$RUN_DIR/playwright.log" 2>&1 & track $!
+  spawn playwright npx --yes playwright run-server --port "$PW_PORT" --host 127.0.0.1
   # Search only the cache dirs that exist; `find` fails on a missing path and
   # would trip `set -e`.
   local shell_bin=""
@@ -82,22 +81,17 @@ up() {
     echo "  could not locate a headless_shell binary; run: npx playwright install chromium" >&2
     return 1
   fi
-  nohup "$shell_bin" --remote-debugging-port="$CDP_PORT" --headless --no-sandbox \
-    > "$RUN_DIR/cdp.log" 2>&1 & track $!
+  spawn cdp "$shell_bin" --remote-debugging-port="$CDP_PORT" --headless --no-sandbox
   wait_for_http "http://127.0.0.1:$CDP_PORT/json/version" "cdp chromium"
 
   echo "== services =="
   PORT=$API_PORT NATS_URL=nats://127.0.0.1:4222 \
-    nohup "$SIBLINGS/act-api-server.rs/target/debug/act_api_server" \
-    > "$RUN_DIR/api.log" 2>&1 & track $!
+    spawn api "$SIBLINGS/act-api-server.rs/target/debug/act_api_server"
   PORT=$WEB_PORT SUPABASE_JWT_SECRET="$JWT_SECRET" \
-    nohup "$SIBLINGS/act-web-server.rs/target/debug/act_web_server" \
-    > "$RUN_DIR/web.log" 2>&1 & track $!
+    spawn web "$SIBLINGS/act-web-server.rs/target/debug/act_web_server"
   PORT=$MCP_PORT \
-    nohup "$SIBLINGS/act-mcp-server.rs/target/debug/act_mcp_server" \
-    > "$RUN_DIR/mcp.log" 2>&1 & track $!
-  ( cd "$SIBLINGS/act-ai-server.ts" && PORT=$AI_PORT \
-    nohup node dist/index.js > "$RUN_DIR/ai.log" 2>&1 & echo $! >> "$PID_FILE" )
+    spawn mcp "$SIBLINGS/act-mcp-server.rs/target/debug/act_mcp_server"
+  ( cd "$SIBLINGS/act-ai-server.ts" && PORT=$AI_PORT spawn ai node dist/index.js )
 
   for p in "$API_PORT api" "$WEB_PORT web" "$MCP_PORT mcp" "$AI_PORT ai"; do
     wait_for_http "http://127.0.0.1:${p%% *}/health" "${p##* } server"
