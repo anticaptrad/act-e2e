@@ -12,6 +12,14 @@ import { nats as natsConfig, timeoutMs } from '../config.mjs';
 const sc = StringCodec();
 const jc = JSONCodec();
 
+// Test files run in parallel against one broker, so a bare `act.events.>`
+// subscription would also see traffic published by the other NATS suites.
+// Scoping every subject under a per-run token keeps the wildcard assertions
+// about *this* file's traffic while still exercising the same match semantics
+// the api-server relies on.
+const RUN = `${process.pid}-${Date.now()}`;
+const EVENTS = `act.events.${RUN}`;
+
 let nc;
 
 before(async () => {
@@ -45,7 +53,7 @@ describe('connectivity', () => {
 
 describe('act.events delivery', () => {
   test('a published event round-trips through the bridge', async () => {
-    const subject = 'act.events.e2e.ping';
+    const subject = `${EVENTS}.ping`;
     const sub = nc.subscribe(subject, { max: 1 });
     const received = collect(sub, 1);
 
@@ -59,13 +67,14 @@ describe('act.events delivery', () => {
   });
 
   test('the > wildcard matches arbitrarily deep subjects', async () => {
-    const sub = nc.subscribe('act.events.>', { max: 3 });
+    const sub = nc.subscribe(`${EVENTS}.>`, { max: 3 });
+    await nc.flush();
     const received = collect(sub, 3);
 
     const subjects = [
-      'act.events.one',
-      'act.events.two.level',
-      'act.events.three.levels.deep',
+      `${EVENTS}.one`,
+      `${EVENTS}.two.level`,
+      `${EVENTS}.three.levels.deep`,
     ];
     for (const s of subjects) nc.publish(s, sc.encode(s));
     await nc.flush();
@@ -75,7 +84,8 @@ describe('act.events delivery', () => {
   });
 
   test('subjects outside act.events are not delivered to the bridge', async () => {
-    const sub = nc.subscribe('act.events.>');
+    const sub = nc.subscribe(`${EVENTS}.>`);
+    await nc.flush();
     const seen = [];
     (async () => {
       for await (const m of sub) seen.push(m.subject);
@@ -83,34 +93,35 @@ describe('act.events delivery', () => {
 
     nc.publish('other.namespace.event', sc.encode('should-not-match'));
     nc.publish('act.commands.run', sc.encode('should-not-match'));
-    nc.publish('act.events.included', sc.encode('should-match'));
+    nc.publish(`${EVENTS}.included`, sc.encode('should-match'));
     await nc.flush();
     await new Promise((r) => setTimeout(r, 250));
     sub.unsubscribe();
 
-    assert.deepEqual(seen, ['act.events.included']);
+    assert.deepEqual(seen, [`${EVENTS}.included`]);
   });
 
   test('a single-token wildcard does not cross token boundaries', async () => {
-    const sub = nc.subscribe('act.events.*');
+    const sub = nc.subscribe(`${EVENTS}.*`);
+    await nc.flush();
     const seen = [];
     (async () => {
       for await (const m of sub) seen.push(m.subject);
     })();
 
-    nc.publish('act.events.flat', sc.encode('x'));
-    nc.publish('act.events.nested.deeper', sc.encode('x'));
+    nc.publish(`${EVENTS}.flat`, sc.encode('x'));
+    nc.publish(`${EVENTS}.nested.deeper`, sc.encode('x'));
     await nc.flush();
     await new Promise((r) => setTimeout(r, 250));
     sub.unsubscribe();
 
-    assert.deepEqual(seen, ['act.events.flat']);
+    assert.deepEqual(seen, [`${EVENTS}.flat`]);
   });
 });
 
 describe('payload integrity', () => {
   test('JSON payloads survive the round trip', async () => {
-    const subject = 'act.events.e2e.json';
+    const subject = `${EVENTS}.json`;
     const sub = nc.subscribe(subject, { max: 1 });
     const received = collect(sub, 1);
 
@@ -123,7 +134,7 @@ describe('payload integrity', () => {
   });
 
   test('unicode and control characters survive intact', async () => {
-    const subject = 'act.events.e2e.unicode';
+    const subject = `${EVENTS}.unicode`;
     const sub = nc.subscribe(subject, { max: 1 });
     const received = collect(sub, 1);
 
@@ -136,7 +147,7 @@ describe('payload integrity', () => {
   });
 
   test('an empty payload is delivered', async () => {
-    const subject = 'act.events.e2e.empty';
+    const subject = `${EVENTS}.empty`;
     const sub = nc.subscribe(subject, { max: 1 });
     const received = collect(sub, 1);
 
@@ -148,7 +159,7 @@ describe('payload integrity', () => {
   });
 
   test('a large payload is delivered intact', async () => {
-    const subject = 'act.events.e2e.large';
+    const subject = `${EVENTS}.large`;
     const sub = nc.subscribe(subject, { max: 1 });
     const received = collect(sub, 1);
 
@@ -161,7 +172,7 @@ describe('payload integrity', () => {
   });
 
   test('message headers survive the round trip', async () => {
-    const subject = 'act.events.e2e.headers';
+    const subject = `${EVENTS}.headers`;
     const sub = nc.subscribe(subject, { max: 1 });
     const received = collect(sub, 1);
 
@@ -177,7 +188,7 @@ describe('payload integrity', () => {
 
 describe('ordering and throughput', () => {
   test('messages on one subject arrive in publish order', async () => {
-    const subject = 'act.events.e2e.ordered';
+    const subject = `${EVENTS}.ordered`;
     const sub = nc.subscribe(subject, { max: 25 });
     const received = collect(sub, 25);
 
@@ -189,7 +200,7 @@ describe('ordering and throughput', () => {
   });
 
   test('a burst of events is delivered without loss', async () => {
-    const subject = 'act.events.e2e.burst';
+    const subject = `${EVENTS}.burst`;
     const count = 250;
     const sub = nc.subscribe(subject, { max: count });
     const received = collect(sub, count);
@@ -201,7 +212,7 @@ describe('ordering and throughput', () => {
   });
 
   test('multiple subscribers each receive a copy (fan-out)', async () => {
-    const subject = 'act.events.e2e.fanout';
+    const subject = `${EVENTS}.fanout`;
     const subA = nc.subscribe(subject, { max: 1 });
     const subB = nc.subscribe(subject, { max: 1 });
     const both = Promise.all([collect(subA, 1), collect(subB, 1)]);
@@ -215,7 +226,7 @@ describe('ordering and throughput', () => {
   });
 
   test('queue-group members share the load (no duplicate delivery)', async () => {
-    const subject = 'act.events.e2e.queue';
+    const subject = `${EVENTS}.queue`;
     const queue = 'workers';
     const total = 20;
     let handled = 0;
@@ -238,7 +249,7 @@ describe('ordering and throughput', () => {
 
 describe('request/reply', () => {
   test('a responder can answer a request', async () => {
-    const subject = 'act.events.e2e.rpc';
+    const subject = `${EVENTS}.rpc`;
     const sub = nc.subscribe(subject, { max: 1 });
     (async () => {
       for await (const msg of sub) {
@@ -252,7 +263,7 @@ describe('request/reply', () => {
 
   test('a request to an unanswered subject times out', async () => {
     await assert.rejects(
-      () => nc.request('act.events.e2e.nobody-home', sc.encode('x'), { timeout: 500 }),
+      () => nc.request(`${EVENTS}.nobody-home`, sc.encode('x'), { timeout: 500 }),
       'expected the request to time out',
     );
   });
