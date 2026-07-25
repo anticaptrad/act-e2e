@@ -23,11 +23,11 @@ export async function getJson(url, options = {}) {
 /** POST a JSON payload, returning status and parsed body when possible. */
 export async function postJson(url, payload, options = {}) {
   const res = await fetch(url, {
+    ...options,
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
     body: typeof payload === 'string' ? payload : JSON.stringify(payload),
-    signal: AbortSignal.timeout(timeoutMs),
-    ...options,
+    signal: options.signal ?? AbortSignal.timeout(timeoutMs),
   });
   const body = await res.text();
   return { status: res.status, headers: res.headers, json: safeParse(body), body };
