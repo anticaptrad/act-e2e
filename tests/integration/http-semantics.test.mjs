@@ -108,16 +108,42 @@ describe('content-type enforcement', () => {
 });
 
 describe('request body limits', () => {
+  /**
+   * A server may refuse an oversized body either with a 4xx or by closing the
+   * connection mid-upload — undici surfaces the latter as a transport error.
+   * Both are valid refusals; being *accepted* is the failure we care about.
+   */
+  async function assertRefused(url, payload) {
+    let status;
+    try {
+      ({ status } = await postJson(url, payload));
+    } catch (err) {
+      return; // connection-level refusal
+    }
+    assert.ok(status >= 400, `oversized body was accepted with ${status}`);
+  }
+
   test('an oversized MCP body is refused, not accepted', async () => {
-    const huge = { jsonrpc: '2.0', id: 1, method: 'ping', params: { blob: 'x'.repeat(4_000_000) } };
-    const { status } = await postJson(`${services.mcp}/mcp`, huge);
-    assert.ok(status >= 400, `expected a rejection, got ${status}`);
+    await assertRefused(`${services.mcp}/mcp`, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'ping',
+      params: { blob: 'x'.repeat(4_000_000) },
+    });
   });
 
   test('an oversized AI body is refused, not accepted', async () => {
-    const huge = { topic: 'x'.repeat(4_000_000), provider: 'openai' };
-    const { status } = await postJson(`${services.ai}/api/generate/script`, huge);
-    assert.ok(status >= 400, `expected a rejection, got ${status}`);
+    await assertRefused(`${services.ai}/api/generate/script`, {
+      topic: 'x'.repeat(4_000_000),
+      provider: 'openai',
+    });
+  });
+
+  test('the services stay healthy after an oversized body', async () => {
+    for (const base of [services.mcp, services.ai]) {
+      const { status } = await get(`${base}/health`);
+      assert.equal(status, 200);
+    }
   });
 
   test('an empty body on a JSON route is a client error', async () => {
