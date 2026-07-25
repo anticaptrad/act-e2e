@@ -8,6 +8,10 @@ the k8s cluster at `~/codes/ores/k8s-cluster`.
 Tests are plain ESM (`*.test.mjs`) run by the Node built-in test runner — no
 transpiler, no jest.
 
+**Docs:** [testing-architecture.md](docs/testing-architecture.md) explains the
+layering and why each layer exists; [cluster-browser-e2e.md](docs/cluster-browser-e2e.md)
+covers running browser E2E against the deployed AWS and Hetzner clusters.
+
 ## Layout
 
 ```
@@ -47,6 +51,11 @@ tests/
     event-bridge.test.mjs           # the api-server really consumes NATS events
   contracts/
     manifests.test.mjs              # k8s manifests vs. what the services do
+  cluster/
+    browser-service.test.mjs        # the deployed cluster's browser service
+docs/
+  testing-architecture.md           # why the layering exists
+  cluster-browser-e2e.md            # running against AWS / Hetzner
 scripts/
   local-env.sh                      # bring the whole dependency stack up locally
 ```
@@ -66,6 +75,7 @@ npm run test:contracts   # k8s manifests vs. the running services
 npm run test:lifecycle   # shutdown + startup config (spawns its own services)
 npm run test:database    # migrations (starts its own Postgres via docker)
 npm run test:journeys    # cross-service flows
+npm run test:cluster     # the deployed cluster's browser service (see docs/)
 ```
 
 The `lifecycle`, `database`, and `journeys` suites start what they need rather
