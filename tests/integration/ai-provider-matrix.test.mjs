@@ -81,9 +81,25 @@ describe('input handling', () => {
     assert.notEqual(status, 400);
   });
 
-  test('a topic of only whitespace is still a value', async () => {
-    const { status } = await postJson(SCRIPT, { topic: '   ', provider });
-    assert.ok(status < 500, `expected no server error, got ${status}`);
+  test('a whitespace-only topic is rejected before any provider call', async () => {
+    // Whitespace passes a plain truthiness check, so without an explicit blank
+    // check this would reach the provider and bill a request for empty input.
+    const { status, json } = await postJson(SCRIPT, { topic: '   \n\t ', provider });
+    assert.equal(status, 400);
+    assert.match(json.error, /missing topic/i);
+  });
+
+  test('a whitespace-only script is rejected', async () => {
+    const { status } = await postJson(`${AI}/api/generate/video`, { script: '   ' });
+    assert.equal(status, 400);
+  });
+
+  test('a whitespace-only title is rejected', async () => {
+    const { status } = await postJson(`${AI}/api/publish/youtube`, {
+      filePath: '/tmp/x.mp4',
+      title: '  ',
+    });
+    assert.equal(status, 400);
   });
 
   test('extra unknown fields are ignored', async () => {

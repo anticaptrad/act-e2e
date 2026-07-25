@@ -137,7 +137,7 @@ describe('subscription management', () => {
     subjects.forEach((s, i) => nc.publish(s, sc.encode(`payload-${i}`)));
     await nc.flush();
 
-    const got = await Promise.all(waits);
+    const got = await withTimeout(Promise.all(waits), 'per-subject messages');
     assert.deepEqual(got, subjects.map((_, i) => `payload-${i}`));
   });
 
@@ -165,7 +165,7 @@ describe('load behaviour', () => {
     for (let i = 0; i < count; i++) nc.publish(subject, sc.encode(String(i)));
     await nc.flush();
 
-    assert.equal(await done, count);
+    assert.equal(await withTimeout(done, `${count} burst messages`), count);
   });
 
   test('interleaved subjects stay correctly routed under load', async () => {
@@ -190,7 +190,7 @@ describe('load behaviour', () => {
     }
     await nc.flush();
 
-    const [gotA, gotB] = await both;
+    const [gotA, gotB] = await withTimeout(both, 'interleaved subjects');
     assert.ok(gotA.every((v) => v.startsWith('a')), 'subject A received foreign messages');
     assert.ok(gotB.every((v) => v.startsWith('b')), 'subject B received foreign messages');
   });
@@ -231,6 +231,6 @@ describe('load behaviour', () => {
     })();
     nc.publish(subject, sc.encode('still-alive'));
     await nc.flush();
-    assert.equal(await received, 'still-alive');
+    assert.equal(await withTimeout(received, 'post-load message'), 'still-alive');
   });
 });
