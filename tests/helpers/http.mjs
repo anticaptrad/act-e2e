@@ -10,6 +10,10 @@ export async function get(url, options = {}) {
   return { status: res.status, headers: res.headers, body: await res.text() };
 }
 
+// Caller options are spread first so the fields computed below always win.
+// Spreading them last would let an options object that carries `headers`
+// silently drop the content-type merged in here.
+
 /** GET and parse the body as JSON. */
 export async function getJson(url, options = {}) {
   const { status, headers, body } = await get(url, options);
@@ -19,11 +23,11 @@ export async function getJson(url, options = {}) {
 /** POST a JSON payload, returning status and parsed body when possible. */
 export async function postJson(url, payload, options = {}) {
   const res = await fetch(url, {
+    ...options,
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
     body: typeof payload === 'string' ? payload : JSON.stringify(payload),
-    signal: AbortSignal.timeout(timeoutMs),
-    ...options,
+    signal: options.signal ?? AbortSignal.timeout(timeoutMs),
   });
   const body = await res.text();
   return { status: res.status, headers: res.headers, json: safeParse(body), body };

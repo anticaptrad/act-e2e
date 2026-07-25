@@ -10,12 +10,14 @@
     "test:puppeteer": "node --test \"tests/browser/puppeteer/*.test.mjs\"",
     "test:selenium": "node --test \"tests/browser/selenium/*.test.mjs\"",
     "test:integration": "node --test \"tests/integration/*.test.mjs\"",
-    "test:browser": "node --test \"tests/browser/**/*.test.mjs\""
+    "test:browser": "node --test \"tests/browser/**/*.test.mjs\"",
+    "test:contracts": "node --test \"tests/contracts/*.test.mjs\""
   },
   "devDependencies": {
     "nats": "^2.28.2",
     "playwright-core": "^1.48.2",
     "puppeteer-core": "^23.6.0",
-    "selenium-webdriver": "^4.26.0"
+    "selenium-webdriver": "^4.26.0",
+    "yaml": "^2.9.0"
   }
 }
