@@ -9,13 +9,14 @@
 export const browsers = {
   // Remote Chromium exposed by the Playwright service.
   playwrightWsEndpoint: process.env.PLAYWRIGHT_WS_ENDPOINT ?? 'ws://playwright-service:3000',
-  // Remote Chrome exposed by the Puppeteer service.
+  // Remote Chrome exposed by the Puppeteer service (CDP endpoint).
   puppeteerWsEndpoint: process.env.PUPPETEER_WS_ENDPOINT ?? 'ws://puppeteer-service:3000',
   // Selenium Grid hub.
   seleniumUrl: process.env.SELENIUM_URL ?? 'http://selenium-hub:4444/wd/hub',
 };
 
-// Service URLs. Each k8s Service listens on port 80 and forwards to the app.
+// Service URLs as seen from the test process. Each k8s Service listens on port
+// 80 and forwards to the app.
 export const services = {
   api: process.env.ACT_API_URL ?? 'http://act-api-server',
   web: process.env.ACT_WEB_URL ?? 'http://act-web-server',
@@ -23,9 +24,28 @@ export const services = {
   mcp: process.env.ACT_MCP_URL ?? 'http://act-mcp-server',
 };
 
+// Service URLs as seen *from inside a remote browser*. In-cluster these are the
+// same as `services`, so they default to it. They differ only when driving a
+// containerized browser from the host during local testing, where the host is
+// reachable under another name (e.g. `host.docker.internal`).
+export const browserServices = {
+  api: process.env.BROWSER_ACT_API_URL ?? services.api,
+  web: process.env.BROWSER_ACT_WEB_URL ?? services.web,
+  ai: process.env.BROWSER_ACT_AI_URL ?? services.ai,
+  mcp: process.env.BROWSER_ACT_MCP_URL ?? services.mcp,
+};
+
 export const nats = {
   url: process.env.NATS_URL ?? 'nats://nats:4222',
 };
 
-// Per-connection timeout for remote browser sessions (ms).
+// Supabase JWT settings. The secret is only known to the test process when
+// explicitly provided; auth suites skip themselves when it is absent so the
+// suite stays runnable against an environment whose secret we don't hold.
+export const supabase = {
+  jwtSecret: process.env.SUPABASE_JWT_SECRET ?? '',
+  jwtAud: process.env.SUPABASE_JWT_AUD ?? 'authenticated',
+};
+
+// Per-connection timeout for remote browser sessions and HTTP calls (ms).
 export const timeoutMs = Number(process.env.E2E_TIMEOUT_MS ?? 30000);
