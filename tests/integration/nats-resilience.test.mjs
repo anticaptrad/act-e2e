@@ -203,7 +203,9 @@ describe('load behaviour', () => {
     const perPublisher = 50;
     const total = publishers.length * perPublisher;
 
-    const sub = nc.subscribe(subject, { max: total });
+    // Flush the subscription before the other connections start publishing;
+    // cross-connection ordering is not guaranteed.
+    const sub = await subscribeAndFlush(subject, { max: total });
     const done = (async () => {
       let n = 0;
       for await (const _ of sub) if (++n >= total) break;
@@ -217,7 +219,7 @@ describe('load behaviour', () => {
       }),
     );
 
-    assert.equal(await done, total);
+    assert.equal(await withTimeout(done, `${total} messages from 4 publishers`), total);
     await Promise.all(publishers.map((p) => p.close()));
   });
 
