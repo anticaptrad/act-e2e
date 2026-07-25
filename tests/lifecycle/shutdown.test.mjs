@@ -87,12 +87,58 @@ describe('in-flight requests are drained', { skip: skipUnlessBuilt('ai') }, () =
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ script: 'drain then exit' }),
       signal: AbortSignal.timeout(20_000),
-    }).catch(() => null);
+      // Consume the body: an unread response keeps the connection active.
+    }).then((r) => r.text(), () => null);
 
     await new Promise((r) => setTimeout(r, 250));
     const exit = await svc.stop('SIGTERM', 15_000);
     await inFlight;
     assert.equal(exit.code, 0, 'service should exit 0 once drained');
+  });
+
+  test('shutdown is bounded when a client never reads its response', async () => {
+    // A client that leaves the body unread keeps the connection active, so an
+    // unbounded drain would hold the pod open until the kubelet SIGKILLed it.
+    // The grace period must cap that.
+    const svc = await startService('ai', { SHUTDOWN_GRACE_MS: '2000' });
+    try {
+      // Deliberately never read the body.
+      const rude = fetch(`${svc.url}/api/generate/video`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ script: 'never read' }),
+        signal: AbortSignal.timeout(20_000),
+      }).catch(() => null);
+
+      await new Promise((r) => setTimeout(r, 250));
+      const started = Date.now();
+      const exit = await svc.stop('SIGTERM', 12_000);
+      const elapsed = Date.now() - started;
+
+      assert.equal(exit.code, 0, 'service should still exit 0');
+      assert.ok(elapsed < 10_000, `shutdown took ${elapsed}ms despite a 2s grace period`);
+      await rude;
+    } finally {
+      if (svc.exit === null) svc.proc.kill('SIGKILL');
+    }
+  });
+
+  test('the forced exit is logged so operators can see it', async () => {
+    const svc = await startService('ai', { SHUTDOWN_GRACE_MS: '1000' });
+    try {
+      fetch(`${svc.url}/api/generate/video`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ script: 'unread' }),
+        signal: AbortSignal.timeout(20_000),
+      }).catch(() => null);
+
+      await new Promise((r) => setTimeout(r, 250));
+      await svc.stop('SIGTERM', 12_000);
+      assert.match(svc.logText(), /grace period elapsed/i);
+    } finally {
+      if (svc.exit === null) svc.proc.kill('SIGKILL');
+    }
   });
 
   test('the AI server logs its shutdown', async () => {
