@@ -96,12 +96,41 @@ listening; it never launches a browser. A chromedriver/Chromium version skew, a
 Selenium Manager cold-start failure, or an accidentally-enabled `evaluate` would
 all pass the probe. That gap is why this lane exists.
 
+## dd-selenium-server
+
+A second, Selenium-only service sits alongside it on port 8105, with the same
+`POST /run` contract. It is **one pod with two containers**: `selenium`
+(`selenium/standalone-chromium`) runs the real Grid on `:4444`, and
+`selenium-api` (Java/Vert.x) drives it over `RemoteWebDriver`. Only the
+authenticated API is in the Service; the Grid is never exposed.
+
+That split matters when diagnosing it: the Grid and its API fail independently,
+and the Service only routes to the API. A healthy Grid behind a dead API is
+still a dead service.
+
+Verified on AWS — a real Grid session renders HTML, waits on a selector, and
+extracts text and attributes:
+
+```
+goto https://example.com → waitForSelector h1 → extractText → extractAttribute
+ok=true  770ms  title='Example Domain'
+extracted: {headline: 'Example Domain', link: 'https://iana.org/domains/example'}
+screenshot: image/png 16305B
+```
+
 ## Cluster status observed 2026-07-25
 
 | Cluster | Context / access | Browser infra |
 | --- | --- | --- |
 | AWS EC2 | `dd-ec2-runtime` | **Healthy.** `dd-browser-test-server` 2/2, `dd-selenium-server` 2/2. All 32 cluster tests pass; Playwright 1.56.0, Puppeteer 24.43.1, Selenium 4.44.0. |
-| Hetzner (5-node HA) | SSH `dd-k8s-{fsn1,nbg1,hel1,wrk1,wrk2}` | **Down.** `dd-browser-test-server` and `dd-selenium-server` 0/2, crash-looping for 23+ days. |
+| Hetzner (5-node HA) | SSH `dd-k8s-{fsn1,nbg1,hel1,wrk1,wrk2}` | **Down.** Both services 0/2 for 23+ days; both Service objects have had **zero endpoints for 43 days**. |
+
+On Hetzner the two `dd-selenium-server` containers fail *differently*, which is
+the useful detail: the `selenium` Grid container is **Ready, 1 restart, and
+actively serving sessions** (Chrome 131.0.6778.204), while `selenium-api` has
+**6,645 restarts**. The Grid is fine; the API in front of it cannot start. Since
+the Service exposes only the API, the capability is unavailable anyway — a probe
+from inside the cluster gets `HTTP 000` on `dd-selenium-server:8105`.
 
 The Hetzner failure is a manifest portability defect, not a capacity problem —
 see `k8s-cluster/docs/browser-e2e-cluster-status-2026-07-25.md` for the diagnosis.
