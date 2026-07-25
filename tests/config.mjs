@@ -66,5 +66,21 @@ export const clusterBrowser = {
   timeoutMs: Number(process.env.ACT_BROWSER_TEST_TIMEOUT_MS ?? 180_000),
 };
 
+
+// The cluster's MCP servers (~/codes/ores/k8s-cluster), reached through the
+// dd-remote-gateway. Each is a JSON-RPC MCP endpoint behind bearer auth; the
+// read-only pair share one token while the browser server has its own.
+// See docs/cluster-mcp.md.
+export const clusterMcp = {
+  baseUrl: process.env.ACT_MCP_GATEWAY_URL ?? '',
+  /** Token for the read-only servers (/cluster-mcp, /mcp). */
+  token: process.env.ACT_MCP_TOKEN ?? '',
+  /** dd-browser-mcp-rs uses a separate secret. */
+  browserToken: process.env.ACT_BROWSER_MCP_TOKEN ?? '',
+  /** Allow a self-signed gateway certificate (the IP-based endpoint has one). */
+  insecureTls: process.env.ACT_MCP_INSECURE_TLS === 'true',
+  timeoutMs: Number(process.env.ACT_MCP_TIMEOUT_MS ?? 30_000),
+};
+
 // Per-connection timeout for remote browser sessions and HTTP calls (ms).
 export const timeoutMs = Number(process.env.E2E_TIMEOUT_MS ?? 30000);
