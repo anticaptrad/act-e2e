@@ -24,6 +24,18 @@ export const services = {
   mcp: process.env.ACT_MCP_URL ?? 'http://act-mcp-server',
 };
 
+// Public Google Apps Script deployments used by the control-plane integrations.
+// These smoke tests intentionally carry no API keys or bridge tokens: they verify
+// public health contracts and prove privileged routes fail closed.
+export const appsScript = {
+  youtubeUrl:
+    process.env.YOUTUBE_GAS_URL ??
+    'https://script.google.com/macros/s/AKfycbwXNUnFogkqg_aeobBMLCas21CHJ8eIR8W1AnmEBNx7pPgfio8eARW5J4A-lu_V5gY/exec',
+  chatBridgeUrl:
+    process.env.CHAT_BRIDGE_GAS_URL ??
+    'https://script.google.com/macros/s/AKfycbzIMOO0eQ12WjgRvLmYAdn3zryB57Ush6uWfQWc-iHNvVu6X0ULbPfPv7WMaYdMp2Tq/exec',
+};
+
 // Service URLs as seen *from inside a remote browser*. In-cluster these are the
 // same as `services`, so they default to it. They differ only when driving a
 // containerized browser from the host during local testing, where the host is

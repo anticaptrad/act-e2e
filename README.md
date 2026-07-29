@@ -78,6 +78,7 @@ that suite is where it surfaces.
 ```sh
 npm install
 npm test                 # everything
+npm run test:apps-script # public Google Apps Script contracts; no secrets
 npm run test:integration # HTTP + NATS suites only (no browser needed)
 npm run test:browser     # all three browser drivers
 npm run test:playwright  # one driver at a time
@@ -104,6 +105,8 @@ or point them at port-forwarded endpoints:
 | `SELENIUM_URL` | `http://selenium-hub:4444/wd/hub` |
 | `NATS_URL` | `nats://nats:4222` |
 | `ACT_API_URL` / `ACT_WEB_URL` / `ACT_AI_URL` / `ACT_MCP_URL` | `http://act-<svc>` |
+| `YOUTUBE_GAS_URL` | Anticaptrad YouTube Apps Script deployment |
+| `CHAT_BRIDGE_GAS_URL` | Google Chat bridge Apps Script deployment |
 | `BROWSER_ACT_*_URL` | same as `ACT_*_URL` |
 | `SUPABASE_JWT_SECRET` | *(unset — auth suite skips)* |
 | `SUPABASE_JWT_AUD` | `authenticated` |
@@ -118,6 +121,13 @@ Two knobs need explanation:
   to mint valid tokens. The suite skips itself when the secret is unset, so the
   rest of the tests stay runnable against an environment whose secret you do not
   hold.
+
+The Apps Script smoke suite never reads an API key or bridge token. It checks
+the public health and landing-page contracts, then sends deliberately
+unauthenticated requests to prove privileged routes fail closed without leaking
+stack traces. Full authenticated channel/message reads remain environment-owned
+tests because repository and Actions secrets are not an approved store for
+those credentials.
 
 ## Running locally against real dependencies
 

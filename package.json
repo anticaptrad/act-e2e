@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "test": "node --test",
+    "test:apps-script": "node --test \"tests/integration/apps-script.test.mjs\"",
     "test:playwright": "node --test \"tests/browser/playwright/*.test.mjs\"",
     "test:puppeteer": "node --test \"tests/browser/puppeteer/*.test.mjs\"",
     "test:selenium": "node --test \"tests/browser/selenium/*.test.mjs\"",

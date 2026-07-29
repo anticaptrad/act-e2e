@@ -1,0 +1,52 @@
+name: Apps Script smoke
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/apps-script-smoke.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tests/config.mjs'
+      - 'tests/helpers/http.mjs'
+      - 'tests/integration/apps-script.test.mjs'
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - '.github/workflows/apps-script-smoke.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tests/config.mjs'
+      - 'tests/helpers/http.mjs'
+      - 'tests/integration/apps-script.test.mjs'
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-script-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test Apps Script contracts
+        run: npm run test:apps-script
