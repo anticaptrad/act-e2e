@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "repository": "anticaptrad/act-e2e",
+  "syncRepository": "anticaptrad/act-sync",
+  "syncRef": "agent/den-1388-opto-sync-zed-adapter",
+  "syncPullRequest": 4,
+  "rolloutIssue": "DEN-1388",
+  "releaseGates": ["DEN-309", "DEN-363"],
+  "releaseState": "blocked-until-certified-package-published",
+  "dependency": {"package": "opto-sync/opto-sync-clients", "range": "^0.2.0"},
+  "collections": ["provider_resources", "translation_jobs", "terminal_states", "sync_checkpoints"],
+  "persistence": {"web": ["indexeddb"], "mobile": ["sqlite"], "backend": ["postgres", "supabase"]},
+  "writeStrategies": ["queuedOptimistic", "remoteConfirmed"],
+  "requiredScenarios": ["real-browser-indexeddb-wasm", "durable-restart", "optimistic-rebase-no-flicker", "remote-confirmed-no-premature-view", "stable-mutation-id-replay", "stale-base-conflict", "tombstone-no-resurrection", "postgres-supabase-authority", "realtime-is-wake-hint"],
+  "domainGuards": [
+    "the Python reducer remains an independent semantic oracle for Rust, TypeScript, and Dart adapters",
+    "provider terminal states and explicit tombstones cannot be resurrected by stale offline replicas",
+    "provider authorization, translation policy, source/target language validation, and retry classification remain Anticaptrad-owned"
+  ]
+}
