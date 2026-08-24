@@ -7,6 +7,11 @@
   "scripts": {
     "test": "node --test",
     "test:apps-script": "node --test \"tests/integration/apps-script.test.mjs\"",
+    "test:youtube-lifecycle": "node --test \"tests/integration/youtube-lifecycle-client.test.mjs\"",
+    "youtube:fixture": "node scripts/generate-youtube-fixture.mjs",
+    "youtube:preflight": "node scripts/youtube-gas-lifecycle.mjs preflight",
+    "youtube:upload-private": "node scripts/youtube-gas-lifecycle.mjs upload-private",
+    "youtube:publish": "node scripts/youtube-gas-lifecycle.mjs publish",
     "test:playwright": "node --test \"tests/browser/playwright/*.test.mjs\"",
     "test:puppeteer": "node --test \"tests/browser/puppeteer/*.test.mjs\"",
     "test:selenium": "node --test \"tests/browser/selenium/*.test.mjs\"",

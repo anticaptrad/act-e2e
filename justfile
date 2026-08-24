@@ -58,3 +58,30 @@ env-unuse:
     else
       echo "no .env to remove"
     fi
+
+[group('youtube')]
+youtube-fixture:
+    npm run youtube:fixture
+
+[group('youtube')]
+youtube-lifecycle-test:
+    npm run test:youtube-lifecycle
+
+# Public health works without secrets. With a decrypted API key this also pins
+# and verifies the authenticated channel before any mutation is possible.
+[group('youtube')]
+youtube-preflight environment="dev":
+    just env-run {{ environment }} npm run youtube:preflight
+
+# Generates the reviewed fixture, ingests it into Drive, uploads it to YouTube,
+# and verifies that it remains private. It never performs public publication.
+[group('youtube')]
+youtube-upload-private environment="dev": youtube-fixture
+    just env-run {{ environment }} npm run youtube:upload-private
+
+# Publication is deliberately separate and receives its approval ephemerally.
+# The video ID is public metadata, not a credential; secrets still come from
+# SOPS. The Apps Script bridge independently enforces the same exact phrase.
+[group('youtube')]
+youtube-publish environment video_id:
+    YOUTUBE_E2E_ALLOW_PUBLIC=true YOUTUBE_E2E_PUBLIC_APPROVAL="PUBLISH {{ video_id }} AS PUBLIC" just env-run {{ environment }} npm run youtube:publish

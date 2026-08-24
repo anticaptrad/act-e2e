@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "title": "AntiCapTrad lifecycle proof — markets and traditional goods",
+  "description": "A synthetic, PG-13-safe, three-minute lifecycle fixture for the AntiCapTrad publishing system. It asks what prices can fail to measure, distinguishes incentives from proof of motive, acknowledges the benefits of markets, and requires evidence, counterarguments, private review, rights confirmation, channel verification, and explicit publication approval. No third-party footage, music, voices, likenesses, or factual source claims are included.",
+  "tags": [
+    "anticaptrad",
+    "markets",
+    "tradition",
+    "publishing-test"
+  ],
+  "categoryId": "27",
+  "defaultLanguage": "en",
+  "madeForKids": false,
+  "rightsConfirmed": true,
+  "initialPrivacyStatus": "private",
+  "contentRating": "PG-13 safe",
+  "expectedDurationSeconds": 180,
+  "sourceRights": "Original synthetic text, generated color fields, and generated silence only."
+}

@@ -125,9 +125,57 @@ Two knobs need explanation:
 The Apps Script smoke suite never reads an API key or bridge token. It checks
 the public health and landing-page contracts, then sends deliberately
 unauthenticated requests to prove privileged routes fail closed without leaking
-stack traces. Full authenticated channel/message reads remain environment-owned
-tests because repository and Actions secrets are not an approved store for
-those credentials.
+stack traces. The separate YouTube lifecycle commands use explicitly selected
+SOPS ciphertext from `env/enc/`; plaintext may exist only in the command
+environment or ignored, mode-`0600` files under `env/dec/`.
+
+## Three-minute YouTube lifecycle proof
+
+The lifecycle fixture is original, synthetic, silent, text-only, and reviewed
+as PG-13 safe. It is exactly 180 seconds, 1280x720 H.264/AAC, and capped below
+the Apps Script bridge's 8 MiB ingest limit. It makes no third-party factual,
+music, footage, voice, or likeness claim.
+
+The flow is private first and split into independent safety gates:
+
+1. Generate and probe the local fixture with FFmpeg.
+2. Verify the Apps Script deployment and the pinned `@anticaptrad` channel ID.
+3. Send the bytes through the authenticated `ingestVideo` action with a SHA-256
+   digest and deterministic correlation ID; Apps Script stores them in Drive.
+4. Start and process the existing resumable YouTube upload, which always begins
+   private.
+5. Read the channel's recent videos and verify the resulting video is private.
+6. Review playback, metadata, rights, and channel identity manually.
+7. Perform a separate public transition that requires both an explicit local
+   opt-in and the Apps Script phrase `PUBLISH VIDEO_ID AS PUBLIC`.
+
+After `anticaptrad@gmail.com` access is restored, rotate/capture the Apps Script
+API key and put these values into `env/enc/dev.env.enc` and
+`env/enc/prod.env.enc` with `just env-edit`; never paste them into source,
+commands, URLs, logs, or CI output:
+
+- `YOUTUBE_GAS_URL`
+- `YOUTUBE_GAS_API_KEY`
+- `YOUTUBE_GAS_EXPECTED_CHANNEL_HANDLE=@anticaptrad`
+- `YOUTUBE_GAS_EXPECTED_CHANNEL_ID`
+
+Then run:
+
+```sh
+nix develop ./.nix
+just env-check
+just youtube-fixture
+just youtube-preflight dev
+just youtube-upload-private dev
+# Review the private video and its receipt under tmp/youtube-lifecycle/.
+just youtube-publish prod VIDEO_ID
+```
+
+The publication approval is intentionally ephemeral and is not stored in SOPS.
+The final recipe constructs it from the reviewed public video ID. While the
+Google account is frozen, only fixture generation, local tests, public health,
+and fail-closed unauthenticated checks are permitted; the tooling does not try
+to bypass Google's account review.
 
 ## Running locally against real dependencies
 

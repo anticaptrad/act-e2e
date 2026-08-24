@@ -25,6 +25,7 @@
             packages = with pkgs; [
               nodejs
               pnpm
+              ffmpeg
 
               git
               direnv

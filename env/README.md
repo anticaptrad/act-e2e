@@ -133,5 +133,20 @@ yields byte-identical values everywhere.
 - `.just/env.just` and `.just/dotenv.py` are a **shared module**, byte-identical
   across the fleet. Fix them in one repo and propagate; do not fork per repo.
 
+## YouTube lifecycle variables
+
+The authenticated Apps Script lifecycle uses four persisted values:
+
+- `YOUTUBE_GAS_URL`
+- `YOUTUBE_GAS_API_KEY`
+- `YOUTUBE_GAS_EXPECTED_CHANNEL_HANDLE`
+- `YOUTUBE_GAS_EXPECTED_CHANNEL_ID`
+
+Add them with `just env-edit dev` and `just env-edit prod` only after the
+`anticaptrad@gmail.com` account is restored and the bridge key can be rotated or
+verified. The API key is sent only in a JSON POST body. The public-visibility
+switch and exact per-video approval phrase are intentionally ephemeral and must
+not be persisted in either encrypted environment.
+
 [sops]: https://github.com/getsops/sops
 [age]: https://github.com/FiloSottile/age

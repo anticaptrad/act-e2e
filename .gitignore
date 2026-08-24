@@ -11,8 +11,15 @@ temp/worktrees
 .env.*
 *.env
 **/*.env
+*.env.*
 env/dec/
+/env/dec/
 !.env.example
+
+# Only the reviewed SOPS ciphertext profiles may be committed.
+/env/enc/*
+!/env/enc/dev.env.enc
+!/env/enc/prod.env.enc
 
 # age private keys — never commit these.
 *.agekey
