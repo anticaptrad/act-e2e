@@ -135,18 +135,20 @@ yields byte-identical values everywhere.
 
 ## YouTube lifecycle variables
 
-The authenticated Apps Script lifecycle uses four persisted values:
+The authenticated Apps Script lifecycle uses four persisted bridge values:
 
 - `YOUTUBE_GAS_URL`
 - `YOUTUBE_GAS_API_KEY`
 - `YOUTUBE_GAS_EXPECTED_CHANNEL_HANDLE`
 - `YOUTUBE_GAS_EXPECTED_CHANNEL_ID`
 
-Add them with `just env-edit dev` and `just env-edit prod` only after the
-`anticaptrad@gmail.com` account is restored and the bridge key can be rotated or
-verified. The API key is sent only in a JSON POST body. The public-visibility
-switch and exact per-video approval phrase are intentionally ephemeral and must
-not be persisted in either encrypted environment.
+Add them with `just env-edit dev` and `just env-edit prod` after the
+`anticaptrad@gmail.com` bridge key has been rotated or verified. The API key is
+sent only in a JSON POST body. A native render flow may additionally persist
+the non-secret `YOUTUBE_E2E_VIDEO_PATH` and `YOUTUBE_E2E_RENDER_RECEIPT_PATH` so
+the selected upload is bound to an approved `act-render` receipt. The
+public-visibility switch and exact per-video approval phrase are intentionally
+ephemeral and must not be persisted in either encrypted environment.
 
 [sops]: https://github.com/getsops/sops
 [age]: https://github.com/FiloSottile/age

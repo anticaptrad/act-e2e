@@ -131,22 +131,31 @@ environment or ignored, mode-`0600` files under `env/dec/`.
 
 ## Three-minute YouTube lifecycle proof
 
-The lifecycle fixture is original, synthetic, silent, text-only, and reviewed
-as PG-13 safe. It is exactly 180 seconds, 1280x720 H.264/AAC, and capped below
-the Apps Script bridge's 8 MiB ingest limit. It makes no third-party factual,
-music, footage, voice, or likeness claim.
+The default lifecycle fixture is original, synthetic, silent, text-only, and
+reviewed as PG-13 safe. It is exactly 180 seconds, 1280x720 H.264/AAC, and
+capped below the Apps Script bridge's 8 MiB ingest limit. It makes no
+third-party factual, music, footage, voice, or likeness claim. A real creator
+render can replace the synthetic fixture by setting
+`YOUTUBE_E2E_RENDER_RECEIPT_PATH` to the credential-free receipt emitted by
+`act-render`; that enables a strict pre-network gate which requires an approved
+native render and matches the master output's SHA-256, byte size, and reviewed
+duration to the local upload file.
 
 The flow is private first and split into independent safety gates:
 
-1. Generate and probe the local fixture with FFmpeg.
-2. Verify the Apps Script deployment and the pinned `@anticaptrad` channel ID.
-3. Send the bytes through the authenticated `ingestVideo` action with a SHA-256
+1. Generate and probe the local fixture with FFmpeg, or render the reviewed
+   creator project and retain its native render receipt.
+2. When a render receipt is configured, verify its closed schema, renderer,
+   review state, publication eligibility, exact channel, and output integrity
+   before making any bridge request.
+3. Verify the Apps Script deployment and the pinned `@anticaptrad` channel ID.
+4. Send the bytes through the authenticated `ingestVideo` action with a SHA-256
    digest and deterministic correlation ID; Apps Script stores them in Drive.
-4. Start and process the existing resumable YouTube upload, which always begins
+5. Start and process the existing resumable YouTube upload, which always begins
    private.
-5. Read the channel's recent videos and verify the resulting video is private.
-6. Review playback, metadata, rights, and channel identity manually.
-7. Perform a separate public transition that requires both an explicit local
+6. Read the channel's recent videos and verify the resulting video is private.
+7. Review playback, metadata, rights, and channel identity manually.
+8. Perform a separate public transition that requires both an explicit local
    opt-in and the Apps Script phrase `PUBLISH VIDEO_ID AS PUBLIC`.
 
 After `anticaptrad@gmail.com` access is restored, rotate/capture the Apps Script
@@ -158,6 +167,11 @@ commands, URLs, logs, or CI output:
 - `YOUTUBE_GAS_API_KEY`
 - `YOUTUBE_GAS_EXPECTED_CHANNEL_HANDLE=@anticaptrad`
 - `YOUTUBE_GAS_EXPECTED_CHANNEL_ID`
+
+For a native creator render, also set `YOUTUBE_E2E_VIDEO_PATH` to the master
+MP4 and `YOUTUBE_E2E_RENDER_RECEIPT_PATH` to its `act-render` receipt. The
+receipt is not a secret and must not contain credentials or media bytes, but its
+path belongs in the selected environment so the upload gate is explicit.
 
 Then run:
 

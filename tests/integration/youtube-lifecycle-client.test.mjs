@@ -14,13 +14,19 @@ const TMP = resolve('tmp/youtube-lifecycle-client-test');
 const VIDEO = resolve(TMP, 'fixture.mp4');
 const METADATA = resolve(TMP, 'metadata.json');
 const RECEIPT = resolve(TMP, 'receipt.json');
+const RENDER_RECEIPT = resolve(TMP, 'render-receipt.json');
 const CHANNEL_ID = 'UC_ANTICAPTRAD_E2E';
 const VIDEO_ID = 'video-e2e-001';
 
-async function fixtureConfig(overrides = {}) {
-  await mkdir(TMP, { recursive: true, mode: 0o700 });
+function fixtureMedia() {
   const media = Buffer.alloc(128);
   media.write('ftyp', 4, 'ascii');
+  return media;
+}
+
+async function fixtureConfig(overrides = {}) {
+  await mkdir(TMP, { recursive: true, mode: 0o700 });
+  const media = fixtureMedia();
   await writeFile(VIDEO, media, { mode: 0o600 });
   await writeFile(
     METADATA,
@@ -49,6 +55,50 @@ async function fixtureConfig(overrides = {}) {
     YOUTUBE_E2E_GIT_COMMIT: '0123456789abcdef',
     ...overrides,
   });
+}
+
+async function writeRenderReceipt(overrides = {}) {
+  const media = fixtureMedia();
+  const receipt = {
+    schemaVersion: '1.0',
+    renderId: 'render-e2e-001',
+    projectId: 'project-e2e-001',
+    status: 'succeeded',
+    source: {
+      projectSha256: 'a'.repeat(64),
+      assets: [{ assetId: 'camera-primary', sha256: 'b'.repeat(64) }],
+    },
+    outputs: [{
+      outputId: 'master-landscape',
+      kind: 'master',
+      relativePath: 'outputs/master-landscape.mp4',
+      sha256: createHash('sha256').update(media).digest('hex'),
+      sizeBytes: media.length,
+      durationMs: 180_000,
+      width: 1920,
+      height: 1080,
+      videoCodec: 'h264',
+      audioCodec: 'aac',
+    }],
+    toolchain: {
+      renderer: 'act-desktop-app.rs',
+      rendererVersion: '0.1.0',
+      ffmpegVersion: 'ffmpeg test fixture',
+    },
+    reviewState: 'approved',
+    publication: {
+      provider: 'youtube',
+      channelHandle: '@anticaptrad',
+      channelId: CHANNEL_ID,
+      privacyStatus: 'private',
+      privateUploadEligible: true,
+      publicEligible: false,
+    },
+    createdAt: '2026-08-29T00:00:00Z',
+    ...overrides,
+  };
+  await writeFile(RENDER_RECEIPT, `${JSON.stringify(receipt)}\n`, { mode: 0o600 });
+  return receipt;
 }
 
 function json(data) {
@@ -143,6 +193,43 @@ test('a mismatched channel ID fails before video ingest', async () => {
   const bridge = fakeBridge({ channelId: 'UC_WRONG_CHANNEL' });
   await assert.rejects(() => uploadPrivate(config, bridge.fetchImpl), /do not own/);
   assert.deepEqual(bridge.calls.map((call) => call.action), ['health', 'channel']);
+});
+
+test('an approved native render receipt binds the private upload to exact rendered bytes', async () => {
+  await writeRenderReceipt();
+  const config = await fixtureConfig({ YOUTUBE_E2E_RENDER_RECEIPT_PATH: RENDER_RECEIPT });
+  const bridge = fakeBridge();
+  const receipt = await uploadPrivate(config, bridge.fetchImpl);
+
+  assert.deepEqual(receipt.source.render, {
+    renderId: 'render-e2e-001',
+    projectId: 'project-e2e-001',
+    outputId: 'master-landscape',
+    relativePath: 'outputs/master-landscape.mp4',
+    renderer: 'act-desktop-app.rs',
+  });
+  assert.equal(bridge.calls[0].action, 'health');
+});
+
+test('a render receipt digest mismatch fails before any bridge request', async () => {
+  const valid = await writeRenderReceipt();
+  await writeRenderReceipt({
+    outputs: [{ ...valid.outputs[0], sha256: 'c'.repeat(64) }],
+  });
+  const config = await fixtureConfig({ YOUTUBE_E2E_RENDER_RECEIPT_PATH: RENDER_RECEIPT });
+  const bridge = fakeBridge();
+
+  await assert.rejects(() => uploadPrivate(config, bridge.fetchImpl), /no master output matching/);
+  assert.deepEqual(bridge.calls, []);
+});
+
+test('a render receipt cannot smuggle credentials or undeclared data into the pipeline', async () => {
+  await writeRenderReceipt({ apiKey: 'must-not-be-accepted' });
+  const config = await fixtureConfig({ YOUTUBE_E2E_RENDER_RECEIPT_PATH: RENDER_RECEIPT });
+  const bridge = fakeBridge();
+
+  await assert.rejects(() => uploadPrivate(config, bridge.fetchImpl), /apiKey is not allowed/);
+  assert.deepEqual(bridge.calls, []);
 });
 
 test('public-only preflight works without decrypting the API key', async () => {
