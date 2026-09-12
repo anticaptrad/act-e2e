@@ -7,6 +7,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const MAX_INGEST_BYTES = 8 * 1024 * 1024;
+const MAX_RENDER_RECEIPT_BYTES = 256 * 1024;
 const DEFAULT_VIDEO = resolve('tmp/youtube-lifecycle/anticaptrad-pg13-lifecycle-180s.mp4');
 const DEFAULT_METADATA = resolve('fixtures/youtube-lifecycle/metadata.json');
 const DEFAULT_RECEIPT = resolve('tmp/youtube-lifecycle/youtube-lifecycle-receipt.json');
@@ -44,6 +45,9 @@ export function lifecycleConfig(environment = process.env) {
     videoPath: resolve(environment.YOUTUBE_E2E_VIDEO_PATH ?? DEFAULT_VIDEO),
     metadataPath: resolve(environment.YOUTUBE_E2E_METADATA_PATH ?? DEFAULT_METADATA),
     receiptPath: resolve(environment.YOUTUBE_E2E_RECEIPT_PATH ?? DEFAULT_RECEIPT),
+    renderReceiptPath: String(environment.YOUTUBE_E2E_RENDER_RECEIPT_PATH ?? '').trim()
+      ? resolve(environment.YOUTUBE_E2E_RENDER_RECEIPT_PATH)
+      : '',
     allowPublic: environment.YOUTUBE_E2E_ALLOW_PUBLIC === 'true',
     publicApproval: String(environment.YOUTUBE_E2E_PUBLIC_APPROVAL ?? '').trim(),
     timeoutMs: Number(environment.YOUTUBE_E2E_GAS_TIMEOUT_MS ?? 300_000),
@@ -157,11 +161,124 @@ async function readFixture(config) {
   if (metadata.rightsConfirmed !== true || metadata.initialPrivacyStatus !== 'private') {
     throw new Error('fixture metadata must confirm rights and private-first publication');
   }
+  const sha256 = createHash('sha256').update(video).digest('hex');
+  const render = config.renderReceiptPath
+    ? await readApprovedRenderReceipt(config, { sha256, sizeBytes: file.size, metadata })
+    : null;
   return {
     video,
     sizeBytes: file.size,
-    sha256: createHash('sha256').update(video).digest('hex'),
+    sha256,
     metadata,
+    render,
+  };
+}
+
+function assertOnlyKeys(value, allowed, context) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${context} must be an object`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) throw new Error(`${context}.${key} is not allowed`);
+  }
+}
+
+function assertSha256(value, context) {
+  if (!/^[a-f0-9]{64}$/.test(String(value ?? ''))) {
+    throw new Error(`${context} must be a lowercase SHA-256 digest`);
+  }
+}
+
+function assertRelativePath(value, context) {
+  const path = String(value ?? '');
+  if (!path || path.startsWith('/') || path.split('/').includes('..') || !/^[A-Za-z0-9._/-]+$/.test(path)) {
+    throw new Error(`${context} must be a confined relative path`);
+  }
+}
+
+function validateReceiptShape(receipt) {
+  assertOnlyKeys(
+    receipt,
+    ['schemaVersion', 'renderId', 'projectId', 'status', 'source', 'outputs', 'toolchain', 'reviewState', 'publication', 'createdAt'],
+    'render receipt',
+  );
+  assertOnlyKeys(receipt.source, ['projectSha256', 'assets'], 'render receipt.source');
+  assertSha256(receipt.source.projectSha256, 'render receipt.source.projectSha256');
+  if (!Array.isArray(receipt.source.assets) || receipt.source.assets.length < 1 || receipt.source.assets.length > 100) {
+    throw new Error('render receipt.source.assets must contain between 1 and 100 assets');
+  }
+  for (const [index, asset] of receipt.source.assets.entries()) {
+    assertOnlyKeys(asset, ['assetId', 'sha256'], `render receipt.source.assets[${index}]`);
+    assertSha256(asset.sha256, `render receipt.source.assets[${index}].sha256`);
+  }
+  if (!Array.isArray(receipt.outputs) || receipt.outputs.length < 1 || receipt.outputs.length > 20) {
+    throw new Error('render receipt.outputs must contain between 1 and 20 outputs');
+  }
+  for (const [index, output] of receipt.outputs.entries()) {
+    assertOnlyKeys(
+      output,
+      ['outputId', 'kind', 'relativePath', 'sha256', 'sizeBytes', 'durationMs', 'width', 'height', 'videoCodec', 'audioCodec', 'sourceWindow'],
+      `render receipt.outputs[${index}]`,
+    );
+    assertRelativePath(output.relativePath, `render receipt.outputs[${index}].relativePath`);
+    assertSha256(output.sha256, `render receipt.outputs[${index}].sha256`);
+    if (output.sourceWindow !== undefined) {
+      assertOnlyKeys(output.sourceWindow, ['startMs', 'endMs'], `render receipt.outputs[${index}].sourceWindow`);
+    }
+  }
+  assertOnlyKeys(
+    receipt.toolchain,
+    ['renderer', 'rendererVersion', 'ffmpegVersion'],
+    'render receipt.toolchain',
+  );
+  assertOnlyKeys(
+    receipt.publication,
+    ['provider', 'channelHandle', 'channelId', 'privacyStatus', 'privateUploadEligible', 'publicEligible'],
+    'render receipt.publication',
+  );
+}
+
+async function readApprovedRenderReceipt(config, fixture) {
+  const receiptFile = await stat(config.renderReceiptPath);
+  if (!receiptFile.isFile() || receiptFile.size < 1 || receiptFile.size > MAX_RENDER_RECEIPT_BYTES) {
+    throw new Error(`render receipt must be a non-empty file no larger than ${MAX_RENDER_RECEIPT_BYTES} bytes`);
+  }
+  const receipt = JSON.parse(await readFile(config.renderReceiptPath, 'utf8'));
+  validateReceiptShape(receipt);
+  if (receipt.schemaVersion !== '1.0' || receipt.status !== 'succeeded' || receipt.reviewState !== 'approved') {
+    throw new Error('render receipt must be a successful, approved schema 1.0 receipt');
+  }
+  if (receipt.toolchain.renderer !== 'act-desktop-app.rs') {
+    throw new Error('render receipt must come from the native act-desktop-app.rs renderer');
+  }
+  const publication = receipt.publication;
+  if (
+    publication.provider !== 'youtube'
+    || normalizeHandle(publication.channelHandle) !== config.expectedHandle
+    || publication.channelId !== config.expectedChannelId
+    || publication.privacyStatus !== 'private'
+    || publication.privateUploadEligible !== true
+    || publication.publicEligible !== false
+  ) {
+    throw new Error('render receipt is not eligible for private upload to the configured AntiCapTrad channel');
+  }
+  const expectedDurationMs = fixture.metadata.expectedDurationSeconds * 1000;
+  const output = receipt.outputs.find((candidate) => (
+    candidate.kind === 'master'
+    && candidate.sha256 === fixture.sha256
+    && candidate.sizeBytes === fixture.sizeBytes
+    && Number.isInteger(candidate.durationMs)
+    && Math.abs(candidate.durationMs - expectedDurationMs) <= 2_000
+  ));
+  if (!output) {
+    throw new Error('render receipt has no master output matching the local video digest, size, and reviewed duration');
+  }
+  return {
+    renderId: required(receipt.renderId, 'render receipt.renderId'),
+    projectId: required(receipt.projectId, 'render receipt.projectId'),
+    outputId: required(output.outputId, 'render receipt output.outputId'),
+    relativePath: output.relativePath,
+    renderer: receipt.toolchain.renderer,
   };
 }
 
@@ -179,8 +296,8 @@ async function writeReceipt(receiptPath, receipt) {
 }
 
 export async function uploadPrivate(config, fetchImpl = fetch) {
-  const verified = await preflight(config, fetchImpl);
   const fixture = await readFixture(config);
+  const verified = await preflight(config, fetchImpl);
   const correlation = fixture.sha256.slice(0, 32);
 
   const ingest = await gasPost(config, fetchImpl, 'ingestVideo', {
@@ -235,7 +352,7 @@ export async function uploadPrivate(config, fetchImpl = fetch) {
     schemaVersion: 1,
     stage: 'private',
     channel: verified.channel,
-    source: { sha256: fixture.sha256, sizeBytes: fixture.sizeBytes },
+    source: { sha256: fixture.sha256, sizeBytes: fixture.sizeBytes, render: fixture.render },
     drive: { fileId: ingest.file.id, idempotentReplay: ingest.idempotentReplay === true },
     youtube: { videoId, url: `https://www.youtube.com/watch?v=${videoId}`, privacyStatus: 'private' },
     repository: config.repository,
