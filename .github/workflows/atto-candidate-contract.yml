@@ -1,0 +1,27 @@
+name: AttoLang candidate E2E boundary cases
+on:
+  pull_request:
+    paths:
+      - 'fixtures/atto/**'
+      - 'tests/contracts/atto-candidate-boundaries.test.mjs'
+      - '.github/workflows/atto-candidate-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'fixtures/atto/**'
+      - 'tests/contracts/atto-candidate-boundaries.test.mjs'
+      - '.github/workflows/atto-candidate-contract.yml'
+permissions:
+  contents: read
+jobs:
+  atto-boundary-canaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: node --test tests/contracts/atto-candidate-boundaries.test.mjs
