@@ -1,0 +1,66 @@
+{
+  "schema": "anticaptrad.atto-candidate-boundary/v1",
+  "status": "candidate",
+  "compilerExecuted": false,
+  "admissionProof": false,
+  "profiles": [
+    {
+      "id": "public-http-status",
+      "repository": "anticaptrad/act-clients",
+      "source": "language-candidates/atto/status_probe.atto",
+      "sourceBlobSha": "f2504c6c46199da5bb7d7bf2d5be6f55a90ae7e7",
+      "pullRequest": "https://github.com/anticaptrad/act-clients/pull/26",
+      "cases": [
+        {
+          "input": 199,
+          "expected": "error"
+        },
+        {
+          "input": 200,
+          "expected": "success"
+        },
+        {
+          "input": 299,
+          "expected": "success"
+        },
+        {
+          "input": 300,
+          "expected": "redirect"
+        },
+        {
+          "input": 399,
+          "expected": "redirect"
+        },
+        {
+          "input": 400,
+          "expected": "error"
+        }
+      ]
+    },
+    {
+      "id": "creator-clip-duration",
+      "repository": "anticaptrad/act-interfaces",
+      "source": "examples/v1/atto-clip-duration.atto",
+      "sourceBlobSha": "d3427d0fb76a506deaff14b51f7b7c2a4a56902d",
+      "pullRequest": "https://github.com/anticaptrad/act-interfaces/pull/18",
+      "cases": [
+        {
+          "input": 29999,
+          "expected": false
+        },
+        {
+          "input": 30000,
+          "expected": true
+        },
+        {
+          "input": 50000,
+          "expected": true
+        },
+        {
+          "input": 50001,
+          "expected": false
+        }
+      ]
+    }
+  ]
+}
