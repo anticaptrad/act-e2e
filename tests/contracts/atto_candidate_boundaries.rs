@@ -55,7 +55,7 @@ fn candidate_errors(doc: &str) -> Vec<&'static str> {
             "https://github.com/anticaptrad/act-interfaces/pull/18"),
     ] {
         let Some(profile) = section(doc, id) else {
-            failures.push("profile missing");
+            check(false, "profile missing");
             continue;
         };
         check(field(profile, "repository") == Some(repo), "repository ownership");
