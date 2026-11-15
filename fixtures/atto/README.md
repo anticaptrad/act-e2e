@@ -11,4 +11,4 @@ stay candidate-only. Once a pinned Atto Rust/Wasm compiler can execute both
 fixtures, extend this suite to compare real guest outputs with the committed
 vectors and record the compiler SHA and complete execution receipt.
 
-Run: `node --test tests/contracts/atto-candidate-boundaries.test.mjs`.
+Run: `rustc --edition=2021 --test tests/contracts/atto_candidate_boundaries.rs -o /tmp/atto-e2e-tests && /tmp/atto-e2e-tests`.
