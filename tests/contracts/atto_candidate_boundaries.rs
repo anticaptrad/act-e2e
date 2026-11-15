@@ -6,7 +6,10 @@ fn section<'a>(text: &'a str, id: &str) -> Option<&'a str> {
     let anchor = format!("\"id\": \"{id}\"");
     let start = text.find(&anchor)?;
     let rest = &text[start..];
-    let end = rest.find("\n    }\n").or_else(|| rest.find("\n    }\r\n"))?;
+    let end = ["\n    },", "\n    }\n", "\n    }\r\n"]
+        .iter()
+        .filter_map(|suffix| rest.find(suffix))
+        .min()?;
     Some(&rest[..end])
 }
 
